@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>檔案管理系統</title>
+    <style>
+        /* 整體黑底白字的風格 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000; /* 黑色背景 */
+            color: #fff; /* 白色字體 */
+        }
+        /* 上傳按鈕樣式 */
+        #upload-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5); /* 加上陰影 */
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        #upload-button:hover {
+            background-color: #45a049;
+            transform: scale(1.1); /* 滑鼠懸停放大效果 */
+        }
+        /* 檔案列表容器的樣式 */
+        #file-list {
+            margin: 50px auto;
+            max-width: 600px;
+            border: 1px solid #444;
+            padding: 20px;
+            background-color: #222; /* 深灰色背景 */
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3); /* 白色光暈陰影 */
+        }
+        /* 檔案項目的立體風格 */
+        .file-item {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #333; /* 中等灰色背景 */
+            border-radius: 5px;
+            border: 1px solid #555;
+            cursor: pointer;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5); /* 立體陰影效果 */
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .file-item:hover {
+            transform: translateY(-3px); /* 懸停時微微向上浮起 */
+            box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.7); /* 加強陰影效果 */
+        }
+    </style>
+</head>
+<body>
+
+    <button id="upload-button">上傳</button>
+    <div id="file-list">載入檔案中...</div>
+
+    <script>
+        const uploadButton = document.getElementById('upload-button');
+        const fileListContainer = document.getElementById('file-list');
+
+        const apiHost = 'http://192.168.50.11:8000';
+        const uploadApi = `${apiHost}/upload`;
+        const filelistApi = `${apiHost}/filelist/`;
+        const downloadApi = `${apiHost}/download/`;
+
+        uploadButton.addEventListener('click', async () => {
+            const file = await selectFile();
+            if (file) {
+                uploadFile(file);
+            }
+        });
+
+        function selectFile() {
+            return new Promise((resolve) => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.onchange = () => resolve(input.files[0]);
+                input.click();
+            });
+        }
+
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch(uploadApi, {
+                method: 'POST',
+                body: formData,
+                headers: { 'accept': 'application/json' }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    alert('上傳成功');
+                    loadFileList();
+                })
+                .catch(error => {
+                    console.error('上傳失敗', error);
+                    alert('上傳失敗');
+                });
+        }
+
+        setInterval(loadFileList, 5000);
+
+        function loadFileList() {
+            fetch(filelistApi)
+                .then(response => response.json())
+                .then(files => {
+                    fileListContainer.innerHTML = '';
+                    files.forEach(file => {
+                        const fileItem = document.createElement('div');
+                        fileItem.className = 'file-item';
+                        fileItem.textContent = file;
+                        fileItem.ondblclick = () => downloadFile(file);
+                        fileListContainer.appendChild(fileItem);
+                    });
+                })
+                .catch(error => {
+                    console.error('無法載入檔案列表', error);
+                    fileListContainer.innerHTML = '載入失敗';
+                });
+        }
+
+        function downloadFile(fileName) {
+            window.location.href = `${downloadApi}${fileName}`;
+        }
+
+        loadFileList();
+    </script>
+
+</body>
+</html>
