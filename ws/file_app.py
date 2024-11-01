@@ -15,24 +15,49 @@ class Youtube(BaseModel):
     url: str = Field(..., description="要下載的youtube影片")
 
 async def download(url):
-    try:
-        yt = YouTube(url)
-        path = "./youtube/"
-        file = path + "video.mp4"
-        for stream in yt.streams:
-            if stream.resolution == "720p":
-                print("找到影片url: {}".format(stream.url))
-                response = requests.get(stream.url, stream=True)
-                
-                with open(file, "wb") as f:
-                    print("開始下載...")
-                    for chunk in response.iter_content(chunk_size=4096):
-                        if chunk:  # 濾除空的 chunk
-                            f.write(chunk)
-                print("下載完成")
-                break
-    except Exception as e:
-        print(f"下載失敗: {e}")
+    yt = YouTube(url)
+    path = "./youtube/"
+    file = path + "video.mp4"
+    stream = yt.streams.filter(res="720p").first()  # 選擇 720p 畫質
+    if stream:
+        print(f"找到影片 URL: {stream.url}")
+
+        # 取得文件大小並設定分段
+        file_size = stream.filesize
+        num_chunks = 4  # 將文件分成 4 段
+        chunk_size = file_size // num_chunks
+
+        def download_chunk(start, end, index):
+            headers = {"Range": f"bytes={start}-{end}"}
+            response = requests.get(stream.url, headers=headers, stream=True)
+            with open(f"{file}_part{index}", "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024*1024):  # 1 MB
+                    if chunk:
+                        f.write(chunk)
+            print(f"完成第 {index+1} 段下載")
+
+        # 創建多線程下載
+        with ThreadPoolExecutor(max_workers=num_chunks) as executor:
+            futures = []
+            for i in range(num_chunks):
+                start = i * chunk_size
+                end = start + chunk_size - 1 if i < num_chunks - 1 else file_size - 1
+                futures.append(executor.submit(download_chunk, start, end, i))
+
+            for future in futures:
+                future.result()  # 等待所有段完成
+
+        # 合併文件
+        with open(file, "wb") as f:
+            for i in range(num_chunks):
+                part_file = f"{file}_part{i}"
+                with open(part_file, "rb") as pf:
+                    f.write(pf.read())
+                os.remove(part_file)  # 刪除臨時分段文件
+
+        print("下載完成，已合併所有文件")
+    else:
+        print("找不到符合條件的影片串流")
 
 # 定義路由
 app = FastAPI(
